@@ -1,6 +1,7 @@
 package com.rk.filesplitter.pages
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.widget.Toast
@@ -10,10 +11,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -27,20 +30,42 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.rk.components.SettingsToggle
 import com.rk.components.compose.preferences.base.PreferenceGroup
+import com.rk.filesplitter.Splitting
+import com.rk.filesplitter.split
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 
 private var selectedFileUri by mutableStateOf<Uri?>(null)
 private var selectedFileName by mutableStateOf<String?>(null)
 private var selectedFileSizeByte by mutableStateOf<Long?>(null)
-@OptIn(ExperimentalMaterial3Api::class)
+private var splitJob: Job? = null
+
+var splitting by mutableStateOf(false)
+
+
+@OptIn(ExperimentalMaterial3Api::class, DelicateCoroutinesApi::class)
 @Composable
 fun SplitPage() {
+    if (splitting){
+        Splitting(onCancel = {
+            splitJob?.cancel()
+        })
+        return
+    }
+
+
     Column {
+
         val context = LocalContext.current
         val filePickerLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.OpenDocument(),
@@ -87,7 +112,6 @@ fun SplitPage() {
             var sizeInputValue by rememberSaveable { mutableStateOf("") }
             var splitBy by remember { mutableIntStateOf(0) }
 
-            // Initialize on first composition
             LaunchedEffect(selectedFileSizeByte) {
                 if (selectedFileSizeByte != null) {
                     val sizePerPartBytes = selectedFileSizeByte!! / 2
@@ -148,7 +172,7 @@ fun SplitPage() {
             }
 
             if (splitBy == 0) {
-                var localPartsInputValue by rememberSaveable { mutableStateOf(partsInputValue) }
+                var localPartsInputValue by remember { mutableStateOf(partsInputValue) }
                 OutlinedTextField(
                     value = localPartsInputValue,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -170,7 +194,7 @@ fun SplitPage() {
                         .padding(horizontal = 20.dp, vertical = 16.dp)
                 )
             } else {
-                var localSizeInputValue by rememberSaveable { mutableStateOf(sizeInputValue) }
+                var localSizeInputValue by remember { mutableStateOf(sizeInputValue) }
                 OutlinedTextField(
                     value = localSizeInputValue,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -192,7 +216,41 @@ fun SplitPage() {
                         .padding(horizontal = 20.dp, vertical = 16.dp)
                 )
             }
+
+
+            var fileName by remember { mutableStateOf(selectedFileName.toString()) }
+            OutlinedTextField(
+                value = fileName,
+                onValueChange = { new ->
+                    fileName = new
+                },
+                label = { Text("${fileName}.partN") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
+            )
+
+
+            val context = LocalContext.current
+            val directoryPicker = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.OpenDocumentTree()
+            ) { uri ->
+                if (uri != null) {
+                    splitJob = GlobalScope.launch(Dispatchers.IO){
+                        splitting = true
+                        split(context.applicationContext,selectedFileUri!!,uri,partsInputValue.toInt(), partNamePrefix = fileName)
+                    }
+                }
+            }
+
+            Button(modifier = Modifier.fillMaxWidth().padding(20.dp), shape = RoundedCornerShape(4.dp), onClick = {
+                directoryPicker.launch(null)
+            }) {
+                Text("Split")
+            }
         }
+
 
 
     }

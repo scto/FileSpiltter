@@ -19,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.rk.filesplitter.pages.MergePage
@@ -28,7 +29,7 @@ import com.rk.filesplitter.ui.theme.FileSplitterTheme
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileSplitterApp() {
-    var selectedPage by remember { mutableStateOf("split") }
+    var selectedPage by rememberSaveable { mutableStateOf("split") }
 
     FileSplitterTheme {
         Scaffold(
